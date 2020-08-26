@@ -1,0 +1,190 @@
+---
+output:
+  html_document: default
+  word_document: default
+  html_notebook: default
+  pdf_document: default
+---
+```{r}
+#Import data
+data<- read.csv(file.choose())
+head(data)
+```
+
+```{r}
+#load libs
+
+library(stringi)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(esquisse)
+```
+
+
+
+
+
+```{r}
+#check for nulls
+na_vector <- is.na(data)
+length(na_vector[na_vector==T])
+```
+
+```{r}
+#Date conversion
+data$Date<- dmy(data$Date)
+data$Time<- hms::as_hms(data$Time)
+```
+
+
+
+
+```{r}
+#verify date conersion
+str(data)
+head(data)
+
+```
+
+
+```{r}
+#extracting monthly count
+monthly <- summarise(group_by(data,Month = as.integer(month(data$Date))),count = n())
+```
+
+
+```{r}
+#extracting daily count
+daily_count <- summarise(group_by(data,data$Date), count = n())
+
+```
+
+```{r}
+names <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+names
+monthly$names <- names
+monthly <- arrange(monthly, Month)
+
+head(monthly)
+monthly$Month <- NULL
+```
+
+```{r}
+#Monthly
+ggplot(monthly) +
+ aes(x = names, fill = names, weight = count) +
+ geom_bar(position = "dodge") +
+ scale_fill_hue() +
+ labs(x = "Months", y = "No. of Complaints", title = "Monthly Trend") +
+ theme_light() +
+ theme(legend.position = "none")
+```
+
+```{r}
+#Daily
+
+ggplot(daily_count) +
+ aes(x = `data$Date`, y = count) +
+ geom_line(size = 0.8, colour = "#0c4c8a") +
+ labs(x = "Days", y = "No. of Complaints", title = "Daily Trends") +
+ theme_light()
+
+```
+
+
+```{r}
+#Complaint types
+
+network<- contains(data$Customer.Complaint,match = "network", ignore.case = T)
+internet<- contains(data$Customer.Complaint,match = "internet", ignore.case = T)
+billing<- contains(data$Customer.Complaint,match = "billing", ignore.case = T)
+email<- contains(data$Customer.Complaint,match = "email", ignore.case = T)
+charge<- contains(data$Customer.Complaint,match = "charge", ignore.case = T)
+
+data$Customer.Complaint[internet]<- "Internet"
+data$Customer.Complaint[network]<- "Network"
+data$Customer.Complaint[billing]<- "Billing"
+data$Customer.Complaint[email]<- "Email"
+data$Customer.Complaint[charge]<- "Charge"
+
+data$Customer.Complaint[ -c(internet,network,billing,email,charge)]<- "Others"
+```
+
+```{r}
+table(data$Customer.Complaint)
+?table
+
+write.table(data$Customer.Complaint, file = "new.csv")
+
+```
+
+
+```{r}
+#OPen and closed cases
+
+open<- (data$Status  == "Open"| data$Status == "Pending")
+closed<- (data$Status =="Closed"| data$Status=="Solved")
+data$ComplaintStatus[open]<- "Open" 
+data$ComplaintStatus[closed]<- "Closed"
+
+```
+
+```{r}
+#Stacked barchart
+
+
+
+ggplot(data) +
+ aes(x = State, fill = ComplaintStatus) +
+ geom_bar() +
+ scale_fill_hue() +
+  theme(axis.text.x = element_text(angle = 90),
+        axis.title.y = element_text(size = 15),
+        axis.title.x = element_text(size = 15),
+        title = element_text(size = 16,colour = "#0073C2FF"),
+        plot.title = element_text(hjust =  0.5))
+ labs(x = "States", y = "No. of Tickets", title = "Ticket status by state ") +
+ coord_flip() +
+ theme_minimal()
+
+```
+
+
+```{r}
+new<- filter(data, data$ComplaintStatus == "Open")
+head(new)
+state <- summarise(group_by(new,new$State,), count = n())
+
+```
+
+
+```{r}
+ggplot(state) +
+ aes(x = `new$State`, weight = count) +
+ geom_bar(fill = "#0c4c8a") +
+ labs(x = "States", y = "No. of Open Tickets", title = "States with Open Tickets") +
+ coord_flip() +
+ theme_minimal()
+```
+
+```{r}
+resolved <- group_by(data,ComplaintStatus)
+total_resolved<- summarise(resolved ,percentage =(n()/nrow(resolved))) 
+resolved <- group_by(data,ComplaintStatus)
+Category_resolved<- summarise(resolved ,percentage =(n()/nrow(resolved))) 
+```
+
+
+
+```{r}
+ggplot(resolved) +
+ aes(x = ComplaintStatus, fill = Received.Via) +
+ geom_bar(position = "dodge") +
+ scale_fill_hue() +
+ theme_minimal()
+
+
+```
+
